@@ -4,20 +4,31 @@
 #
 # BB_USER: login or user's workspace ID
 # BB_PASSWORD: password or https://bitbucket.org/account/settings/app-passwords
-# BB_WORKSPACE: worspace to requests repositories list
+# BB_WORKSPACE: workspace to requests repositories list
 
 import os
 import json
 import requests
+import argparse
 
 base_url = 'https://api.bitbucket.org/'
-user = os.environ.get('BB_USER')
-password = os.environ.get('BB_PASSWORD')
-workspace = os.environ.get('BB_WORKSPACE')
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-u', '--user', default=os.environ.get('BB_USER'), help='login or user workspace ID')
+parser.add_argument('-p', '--password', default=os.environ.get('BB_PASSWORD'), help='user or application password')
+parser.add_argument('-w', '--workspace', help='workspace to look for repositories')
+parser.add_argument('-e', '--exclude', action='append', default=[], help='exclude project keys')
+args = parser.parse_args()
+
+if not args.user or not args.password:
+    exit(parser.print_usage())
 
 endpoint = '2.0/repositories'
-if(workspace):
-    endpoint = '2.0/repositories/' + workspace
+if(args.workspace):
+    endpoint += '/' + args.workspace
+if(args.exclude):
+    endpoint += '?role=member&'
+    endpoint += 'q=' + ' AND '.join(['project.key != \"' + s + '"' for s in args.exclude])
 
 def api_get(url, user, password):
     resp = requests.get(url, auth=(user, password))
@@ -26,14 +37,14 @@ def api_get(url, user, password):
     else:
         return {}
 
-response = api_get(base_url + endpoint, user, password)
+response = api_get(base_url + endpoint, args.user, args.password)
 repositories = response['values']
 
 while ('next' in response):
-    response = api_get(response['next'], user, password)
+    response = api_get(response['next'], args.user, args.password)
     repositories += response['values']
 
-print("{0:60s} {1:40s} {2}".format('full name', 'updated on', 'size'))
+print("{0:60s} {1:10s} {2:40s} {3}".format('repository', 'project', 'updated on', 'size'))
 for r in repositories:
-    print("{0:60s} {1:40s} {2}".format(r['full_name'], r['updated_on'], r['size']))
+    print("{0:60s} {1:10s} {2:40s} {3}".format(r['full_name'], r['project']['key'], r['updated_on'], r['size']))
 
