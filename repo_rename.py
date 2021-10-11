@@ -61,14 +61,16 @@ while ('next' in response):
     response = bitbucket_api(response['next'], args.user, args.password)
     repositories += response['values']
 
-status = 'DRY RUN'
 print("{0:10s} {1:40s} {2:40s} {3:10s}".format('project', 'repository (old)', 'repository (new)', 'status'))
 for r in repositories:
+    status = 'DRY RUN'
     new_name = re.sub(r'{}'.format(args.search),r'{}'.format(args.replace),r['name'])
-    if(args.run):
+    if r['name'] == new_name:
+        status = 'SKIP'
+    if(args.run and status != 'SKIP'):
         payload = {'name': new_name}
-        status = 'OK'
+        status = 'FAILED'
         response = bitbucket_api(base_url + '/' + r['name'], args.user, args.password, payload)
-        if response.get('name', '') != new_name:
-            status = 'FAILED'
+        if response.get('name', '') == new_name:
+            status = 'OK'
     print("{0:10s} {1:40s} {2:40s} {3:10s}".format(r['project']['key'], r['name'], new_name, status))
